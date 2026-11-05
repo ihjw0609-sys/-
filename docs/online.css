@@ -1,0 +1,92 @@
+/* SHADOW EXTRACTION — 온라인 레이어 UI */
+.ol,.ol *{box-sizing:border-box}
+.ol input,.ol textarea{user-select:text;-webkit-user-select:text}
+.ol button{font-family:inherit}
+
+/* ---------- 로그인 / 가입 / 닉네임 ---------- */
+#olAuth{position:fixed;inset:0;z-index:1000;display:none;align-items:center;justify-content:center;
+  background:radial-gradient(ellipse at 70% 20%,rgba(60,120,95,.18),transparent 55%),radial-gradient(ellipse at 10% 100%,rgba(150,20,20,.28),transparent 55%),#090b0d}
+#olAuth.on{display:flex}
+.ol-box{width:min(380px,92vw);padding:26px 26px 22px;background:rgba(14,18,22,.94);border:1px solid #2f3842;box-shadow:0 10px 40px #000}
+.ol-logo{text-align:center;margin-bottom:18px}
+.ol-logo small{display:block;letter-spacing:.7em;color:#a33;font-size:11px;font-weight:700;margin-bottom:6px}
+.ol-logo b{display:block;font:900 30px/1 Impact,'Arial Black',sans-serif;letter-spacing:.05em;color:#c9c5b6;text-shadow:0 2px 0 #000}
+.ol-logo em{font-style:normal;color:#8c1c18}
+.ol-tabs{display:flex;margin-bottom:14px;border-bottom:1px solid #2f3842}
+.ol-tabs button{flex:1;background:none;color:#7d8793;border:0;border-bottom:2px solid transparent;padding:9px 0;font-size:14px;font-weight:700;cursor:pointer;border-radius:0}
+.ol-tabs button:hover{background:none;color:#dcd8c8}
+.ol-tabs button.on{color:var(--ac);border-bottom-color:var(--ac)}
+.ol-f{display:flex;flex-direction:column;gap:10px}
+.ol-f label{display:flex;flex-direction:column;gap:4px;font-size:11px;color:#8a939c}
+.ol-f input[type=text],.ol-f input[type=password]{height:38px;padding:0 11px;background:#0b0d10;border:1px solid #2f3842;color:var(--tx);font-size:14px;border-radius:2px;outline:0}
+.ol-f input:focus{border-color:var(--ac)}
+.ol-f .chk{flex-direction:row;align-items:center;gap:8px;font-size:12px;color:#9aa3ac;cursor:pointer}
+.ol-f .chk input{width:15px;height:15px;accent-color:#c49a45}
+.ol-f .go{height:40px;font-size:14px;margin-top:2px}
+.ol-f .go:disabled{opacity:.5;cursor:wait}
+.ol-hint{font-size:11px;color:#6b7480;line-height:1.55}
+.ol-err{min-height:16px;font-size:12px;color:#e0605a}
+.ol-link{background:none;color:#7d8793;padding:4px;font-size:11px;font-weight:400;text-decoration:underline;margin-top:2px}
+.ol-link:hover{background:none;color:#dcd8c8}
+.ol-load{text-align:center;color:#9aa3ac;padding:26px 0;letter-spacing:.2em;font-size:12px}
+
+/* ---------- 토스트 ---------- */
+#olToasts{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:1200;display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none}
+.ol-t{background:rgba(10,12,14,.92);border:1px solid #3a4048;border-left:3px solid var(--ac);padding:8px 16px;font-size:13px;font-weight:700;color:#e6e2d2;animation:olIn .2s ease-out;max-width:90vw}
+.ol-t.bad{border-left-color:#c0453f;color:#f0b4b0}
+@keyframes olIn{from{opacity:0;transform:translateY(-8px)}}
+
+/* ---------- 홈 화면 소셜 ---------- */
+#olBar{position:fixed;left:16px;top:14px;z-index:300;display:none;gap:8px}
+#olBar.on{display:flex}
+#olBar button{position:relative;background:rgba(14,18,22,.9);color:#dcd8c8;border:1px solid #2f3842;padding:8px 14px;font-size:13px;font-weight:700}
+#olBar button:hover{border-color:var(--ac);background:rgba(28,34,40,.95)}
+#olBar .bdg{position:absolute;top:-7px;right:-7px;min-width:18px;height:18px;padding:0 4px;border-radius:9px;background:#c0453f;color:#fff;font-size:11px;line-height:18px;text-align:center}
+#olBar .dot,.ol-p .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#555;margin-right:6px;vertical-align:middle}
+.dot.on{background:#6fbf5a}.dot.raid{background:#d9a441}.dot.off{background:#555}
+
+#olPanel{position:fixed;left:0;top:0;bottom:30px;width:min(340px,92vw);z-index:310;display:none;flex-direction:column;background:rgba(10,13,16,.97);border-right:1px solid #2f3842;box-shadow:6px 0 30px rgba(0,0,0,.6)}
+#olPanel.on{display:flex}
+.ol-ph{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid #2f3842;font-weight:700}
+.ol-ph small{display:block;font-weight:400;color:#6b7480;font-size:11px;margin-top:2px}
+.ol-ph .x{background:none;color:#9aa3ac;font-size:20px;padding:0 6px;line-height:1}
+.ol-ph .x:hover{background:none;color:#fff}
+.ol-pb{flex:1;overflow:auto;padding:10px 14px 18px}
+.ol-pb h4{font-size:11px;letter-spacing:.15em;color:#7d8793;margin:16px 0 7px;font-weight:700}
+.ol-pb h4:first-child{margin-top:4px}
+.ol-row{display:flex;align-items:center;gap:6px;padding:6px 8px;background:#12171c;border:1px solid #1f262d;margin-bottom:4px;font-size:13px;min-height:34px}
+.ol-row .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ol-row .sub{font-size:10px;color:#6b7480;margin-left:4px}
+.ol-row button,.ol-pb .sm{background:#2a313a;color:var(--tx);padding:4px 9px;font-size:11px;margin:0}
+.ol-row button:hover,.ol-pb .sm:hover{background:#3a4450}
+.ol-row button.pri{background:var(--ac);color:#111}
+.ol-row button.pri:hover{background:#e5b955}
+.ol-row button.dng{background:#3a1f1f;color:#e0a09c}
+.ol-row button[disabled]{opacity:.4;cursor:default}
+.ol-empty{color:#555e68;font-size:12px;padding:4px 2px}
+.ol-add{display:flex;gap:6px}
+.ol-add input{flex:1;min-width:0;height:32px;padding:0 9px;background:#0b0d10;border:1px solid #2f3842;color:var(--tx);font-size:13px;outline:0}
+.ol-add input:focus{border-color:var(--ac)}
+.ol-add button{padding:0 12px;font-size:12px}
+.ol-crown{color:#d9a441;margin-right:2px}
+.ol-rd{font-size:11px;color:#6fbf5a;font-weight:700}
+.ol-wt{font-size:11px;color:#6b7480}
+
+/* ---------- 파티 위젯 (홈 좌하단) ---------- */
+#olParty{position:fixed;left:16px;bottom:76px;z-index:300;display:none;width:250px;background:rgba(10,13,16,.92);border:1px solid #2f3842;border-left:3px solid var(--ac)}
+#olParty.on{display:block}
+#olParty .ph{padding:8px 12px;font-size:11px;letter-spacing:.15em;color:var(--ac);font-weight:700;border-bottom:1px solid #1f262d;display:flex;justify-content:space-between}
+#olParty .pm{padding:6px 12px;font-size:13px;display:flex;align-items:center;gap:6px}
+#olParty .pm .nm{flex:1}
+#olParty .pf{padding:8px 12px;border-top:1px solid #1f262d;font-size:11px;color:#9aa3ac;line-height:1.5}
+#olParty .pf.wait{color:#e5b955}
+#olParty .pf button{display:block;margin-top:6px;padding:4px 10px;font-size:11px}
+
+/* ---------- 초대 팝업 ---------- */
+#olInv{position:fixed;right:16px;top:60px;z-index:320;display:none;flex-direction:column;gap:8px}
+#olInv.on{display:flex}
+.ol-iv{width:280px;padding:12px 14px;background:rgba(10,13,16,.96);border:1px solid var(--ac);box-shadow:0 6px 24px #000;animation:olIn .25s ease-out}
+.ol-iv b{color:var(--ac)}
+.ol-iv div{font-size:13px;line-height:1.5;margin-bottom:9px}
+.ol-iv button{padding:5px 14px;font-size:12px;margin-right:6px}
+.ol-iv button.s{background:#2a313a;color:var(--tx)}

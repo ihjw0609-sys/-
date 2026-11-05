@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: shadow-extraction-server
+    runtime: node
+    plan: free
+    buildCommand: echo "no build"
+    startCommand: node server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: ALLOWED_ORIGINS
+        value: "*"          # 배포 후 https://내아이디.github.io 로 바꾸면 더 안전
+      - key: DATA_DIR
+        value: /var/data    # 유료 플랜 + Disk 를 /var/data 에 연결했을 때만 유지됨
