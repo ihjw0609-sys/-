@@ -25,6 +25,7 @@ const ALLOWED = (process.env.ALLOWED_ORIGINS || '*').split(',').map(x => x.trim(
 const originOk = o => !o || ALLOWED.includes('*') || ALLOWED.includes(o);
 const PARTY_MAX = 4;
 const INVITE_MS = 60 * 1000;
+const LOAD_TIMEOUT_MS = 45 * 1000;                       // 출발 후 전원 로딩 대기 한도
 const OFFLINE_GRACE_MS = 20 * 1000;                      // 새로고침 등 짧은 끊김 허용
 
 /* ============================== DB (JSON 파일) ============================== */
@@ -292,7 +293,7 @@ server.on('upgrade', (req, socket) => {
 const online = new Map();        // uid → Set<WS>
 const status = new Map();        // uid → 'menu' | 'raid'
 const offlineTimers = new Map(); // uid → Timeout (끊김 유예)
-const parties = new Map();       // partyId → { id, leader, members:[uid], ready: Map<uid, mode>, invites: Map<uid, exp> }
+const parties = new Map();       // partyId → { id, leader, members:[uid], ready: Set<uid>(파티원 준비완료), invites: Map<uid, exp>, map, mode, phase:'lobby'|'loading', loaded:Set, timer, raid }
 const userParty = new Map();     // uid → partyId
 const invites = new Map();       // 초대받은 uid → Map<fromUid, { partyId, exp }>
 
@@ -321,8 +322,8 @@ function view(uid) {
   const outgoing = db.requests.filter(r => r.from === uid).map(r => nickOf(r.to));
   const p = parties.get(userParty.get(uid));
   const party = p && {
-    leader: nickOf(p.leader), isLeader: p.leader === uid, max: PARTY_MAX,
-    members: p.members.map(m => ({ nick: nickOf(m), leader: m === p.leader, online: isOnline(m), status: status.get(m) || 'menu', ready: p.ready.has(m), mode: p.ready.get(m) || null })),
+    leader: nickOf(p.leader), isLeader: p.leader === uid, max: PARTY_MAX, map: p.map, mode: p.mode, phase: p.phase,
+    members: p.members.map(m => ({ nick: nickOf(m), leader: m === p.leader, online: isOnline(m), status: status.get(m) || 'menu', ready: p.ready.has(m), loaded: p.loaded.has(m) })),
     pending: [...p.invites].filter(([, e]) => e > now()).map(([t]) => nickOf(t))
   };
   return { t: 'state', me: { id: u.id, nick: u.nick }, friends, incoming, outgoing, invites: liveInvites(uid), party };
@@ -332,7 +333,9 @@ const pushParty = p => p.members.forEach(push);
 
 function setStatus(uid, s) {
   if (status.get(uid) === s) return;
+  const was = status.get(uid);
   status.set(uid, s);
+  if (was === 'raid' && s === 'menu') mateGone(uid);
   push(uid);
   for (const f of db.users[uid].friends) push(f);
   const p = parties.get(userParty.get(uid)); if (p) pushParty(p);
@@ -346,6 +349,8 @@ function disband(p) {
 }
 function leaveParty(uid, kicked) {
   const p = parties.get(userParty.get(uid)); if (!p) return;
+  if (p.phase === 'loading') abortLoad(p, '파티 구성이 바뀌어 출발이 취소되었습니다.');
+  mateGone(uid);
   p.members = p.members.filter(m => m !== uid); userParty.delete(uid); p.ready.clear();
   toast(uid, kicked ? '파티에서 추방되었습니다.' : '파티에서 나왔습니다.');
   if (p.members.length <= 1) { disband(p); push(uid); return; }
@@ -353,16 +358,37 @@ function leaveParty(uid, kicked) {
   else for (const m of p.members) toast(m, `${nickOf(uid)}님이 파티를 ${kicked ? '떠났습니다(추방)' : '떠났습니다'}.`);
   push(uid); pushParty(p);
 }
-function tryStart(p) {
-  if (!p.members.every(m => p.ready.has(m) && isOnline(m) && status.get(m) !== 'raid')) return;
-  const raidId = crypto.randomBytes(6).toString('hex'), seed = crypto.randomInt(1, 2 ** 31 - 1);
-  const mates = p.members.map(nickOf);
-  for (const m of p.members) {
-    const mode = p.ready.get(m);
-    status.set(m, 'raid');
-    sendTo(m, { t: 'start', mode, raidId, seed, party: mates });
-  }
-  p.ready.clear();
+// 팀원이 레이드에서 빠짐 → 같은 파티원에게 알림 (팀원 모델 제거용)
+function mateGone(uid) {
+  const p = parties.get(userParty.get(uid)); if (!p) return;
+  for (const m of p.members) if (m !== uid) sendTo(m, { t: 'pgone', n: nickOf(uid) });
+}
+function newParty(leader) {
+  const p = { id: crypto.randomBytes(6).toString('hex'), leader, members: [leader], ready: new Set(), invites: new Map(), map: 'customs', mode: 'pmc', phase: 'lobby', loaded: new Set(), timer: null, raid: null };
+  parties.set(p.id, p); userParty.set(leader, p.id);
+  return p;
+}
+// 출발(방장) → 전원 로딩 → 전원 로딩 완료 시 동시에 시작
+function launch(p) {
+  p.phase = 'loading'; p.loaded.clear();
+  const seed = crypto.randomInt(1, 2 ** 31 - 1), raidId = crypto.randomBytes(6).toString('hex');
+  p.raid = { id: raidId, seed };
+  clearTimeout(p.timer);
+  p.timer = setTimeout(() => { if (p.phase === 'loading') abortLoad(p, '로딩 시간이 초과되어 출발이 취소되었습니다.'); }, LOAD_TIMEOUT_MS);
+  for (const m of p.members) sendTo(m, { t: 'launch', map: p.map, mode: p.mode, seed, raidId, party: p.members.map(nickOf) });
+  pushParty(p);
+}
+function abortLoad(p, why) {
+  if (p.phase !== 'loading') return;
+  clearTimeout(p.timer); p.phase = 'lobby'; p.loaded.clear(); p.ready.clear(); p.raid = null;
+  for (const m of p.members) sendTo(m, { t: 'abort', why });
+  pushParty(p);
+}
+function goRaid(p) {
+  clearTimeout(p.timer); p.phase = 'lobby';
+  const names = p.members.map(nickOf);
+  for (const m of p.members) { status.set(m, 'raid'); sendTo(m, { t: 'go', map: p.map, mode: p.mode, seed: p.raid.seed, raidId: p.raid.id, party: names }); }
+  p.loaded.clear(); p.ready.clear();
   for (const m of p.members) for (const f of db.users[m].friends) push(f);
   pushParty(p);
 }
@@ -422,8 +448,7 @@ function handle(ws, uid, m) {
       if (p && p.leader !== uid) return fail(ws, '방장만 초대할 수 있습니다.');
       if (p && p.members.length + [...p.invites.values()].filter(e => e > now()).length >= PARTY_MAX) return fail(ws, `파티는 최대 ${PARTY_MAX}명입니다.`);
       if (!p) {          // 초대한 사람이 방장이 되는 새 파티
-        p = { id: crypto.randomBytes(6).toString('hex'), leader: uid, members: [uid], ready: new Map(), invites: new Map() };
-        parties.set(p.id, p); userParty.set(uid, p.id);
+        p = newParty(uid);
       }
       p.invites.set(to, now() + INVITE_MS);
       if (!invites.has(to)) invites.set(to, new Map());
@@ -438,6 +463,7 @@ function handle(ws, uid, m) {
       if (!p || p.leader !== from) return fail(ws, '파티가 더 이상 존재하지 않습니다.');
       if (userParty.has(uid)) return fail(ws, '이미 파티에 속해 있습니다. 먼저 나가세요.');
       if (p.members.length >= PARTY_MAX) return fail(ws, '파티가 가득 찼습니다.');
+      if (p.phase === 'loading') return fail(ws, '지금은 출발 중이라 참가할 수 없습니다.');
       invites.delete(uid); p.invites.delete(uid);
       p.members.push(uid); userParty.set(uid, p.id); p.ready.clear();
       for (const mm of p.members) toast(mm, `${u.nick}님이 파티에 참가했습니다.`);
@@ -458,16 +484,66 @@ function handle(ws, uid, m) {
       if (!t || t === uid || !p.members.includes(t)) return;
       leaveParty(t, true); break;
     }
-    case 'party:ready': {                 // 방장도, 파티원도 '플레이'를 눌러야 시작
+    case 'party:setup': {                 // 방장만: 맵 / 모드 선택 (바뀌면 파티원 준비 해제)
+      const p = parties.get(userParty.get(uid));
+      if (!p || p.leader !== uid) return fail(ws, '방장만 맵을 고를 수 있습니다.');
+      if (p.phase !== 'lobby') return;
+      const map = m.map === 'lab' ? 'lab' : 'customs';
+      let mode = m.mode === 'scav' ? 'scav' : 'pmc';
+      if (map === 'lab') mode = 'pmc';                       // 랩은 PMC 전용
+      if (p.map !== map || p.mode !== mode) { p.map = map; p.mode = mode; p.ready.clear(); }
+      pushParty(p); break;
+    }
+    case 'party:ready': {                 // 파티원: 준비완료 / 취소 (방장은 '출발'을 누름)
       const p = parties.get(userParty.get(uid));
       if (!p) return fail(ws, '파티가 없습니다.');
+      if (p.leader === uid) return;
+      if (p.phase !== 'lobby') return;
       if (status.get(uid) === 'raid') return fail(ws, '이미 출격 중입니다.');
-      if (m.mode !== 'pmc' && m.mode !== 'scav') return;
-      p.ready.set(uid, m.mode); pushParty(p); tryStart(p); break;
+      if (m.on === false) p.ready.delete(uid); else p.ready.add(uid);
+      pushParty(p); break;
     }
-    case 'party:unready': {
-      const p = parties.get(userParty.get(uid)); if (!p) return;
-      p.ready.delete(uid); pushParty(p); break;
+    case 'party:launch': {                // 방장: 전원 준비완료여야 출발 가능
+      const p = parties.get(userParty.get(uid));
+      if (!p || p.leader !== uid) return fail(ws, '방장만 출발할 수 있습니다.');
+      if (p.phase !== 'lobby') return;
+      const others = p.members.filter(x => x !== uid);
+      if (!others.length) return fail(ws, '파티원이 없습니다.');
+      if (!others.every(x => p.ready.has(x))) return fail(ws, '모든 파티원이 준비완료를 눌러야 출발할 수 있습니다.');
+      if (!p.members.every(x => isOnline(x) && status.get(x) !== 'raid')) return fail(ws, '접속이 끊겼거나 출격 중인 파티원이 있습니다.');
+      launch(p); break;
+    }
+    case 'party:loaded': {                // 각자 맵 로딩을 마치면 보고 → 전원 완료 시 동시 시작
+      const p = parties.get(userParty.get(uid));
+      if (!p || p.phase !== 'loading') return;
+      p.loaded.add(uid);
+      if (p.members.every(x => p.loaded.has(x))) goRaid(p); else pushParty(p);
+      break;
+    }
+    case 'party:abort': {                 // 로딩 중 취소 (누구나)
+      const p = parties.get(userParty.get(uid));
+      if (p && p.phase === 'loading') abortLoad(p, `${u.nick}님이 출발을 취소했습니다.`);
+      break;
+    }
+
+    /* ---- 레이드 중 팀원 위치 공유 (같은 레이드에 있는 파티원에게만 전달) ---- */
+    case 'pos': {
+      const p = parties.get(userParty.get(uid));
+      if (!p || status.get(uid) !== 'raid') return;
+      const f = k => (Number.isFinite(m[k]) ? Math.max(-1000, Math.min(1000, m[k])) : 0);
+      const msg = { t: 'pos', n: u.nick, x: f('x'), y: f('y'), z: f('z'), yaw: f('yaw'), c: m.c ? 1 : 0, w: m.w ? 1 : 0 };
+      for (const mm of p.members) if (mm !== uid && status.get(mm) === 'raid') sendTo(mm, msg);
+      break;
+    }
+    /* ---- 레이드 중 적 피해/처치 공유: 같은 시드로 만든 같은 번호의 적에게 hp를 맞춰 줌 ---- */
+    case 'ehit': {
+      const p = parties.get(userParty.get(uid));
+      if (!p || status.get(uid) !== 'raid') return;
+      const i = Math.floor(m.i), hp = +m.hp;
+      if (!(i >= 0 && i < 400) || !Number.isFinite(hp)) return;
+      const msg = { t: 'ehit', i, hp: Math.max(-1000, Math.min(1000, hp)) };
+      for (const mm of p.members) if (mm !== uid && status.get(mm) === 'raid') sendTo(mm, msg);
+      break;
     }
   }
 }
@@ -477,7 +553,7 @@ function onConnect(ws) {
   const authTimer = setTimeout(() => { if (!uid) ws.close(4001); }, 5000);
   const rateTimer = setInterval(() => { ws.rate = 0; }, 1000);
   ws.onmessage = raw => {
-    if (++ws.rate > 30) return ws.close(4008);
+    if (++ws.rate > 60) return ws.close(4008);
     let m; try { m = JSON.parse(raw); } catch (e) { return; }
     if (!m || typeof m.t !== 'string') return;
     if (!uid) {
@@ -505,7 +581,7 @@ function onConnect(ws) {
     const set = online.get(uid); if (set) { set.delete(ws); if (set.size) return; }
     online.delete(uid);
     for (const f of db.users[uid].friends) push(f);
-    const p = parties.get(userParty.get(uid)); if (p) pushParty(p);
+    const p = parties.get(userParty.get(uid)); if (p) { abortLoad(p, '파티원의 접속이 끊겨 출발이 취소되었습니다.'); pushParty(p); }
     // 짧은 끊김(새로고침)은 파티를 유지하고, 오래 끊기면 파티에서 제거
     offlineTimers.set(uid, setTimeout(() => {
       offlineTimers.delete(uid);

@@ -99,7 +99,7 @@ button:hover{background:#e5b955}button.s{background:#2a313a;color:var(--tx);padd
 <div id="end" class="scr"><h1 id="endT"></h1><div id="endS" style="line-height:1.8"></div><button onclick="menu()">메인 메뉴로</button></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
-const $=i=>document.getElementById(i),R=Math.random,CS=40,PI=Math.PI,cl=(v,a,b)=>Math.max(a,Math.min(b,v));
+let SRN=null;const $=i=>document.getElementById(i),R=()=>SRN?SRN():Math.random(),CS=40,PI=Math.PI,cl=(v,a,b)=>Math.max(a,Math.min(b,v));
 const SL=['hd','ar','pr','hs','rg','bp'],SN={hd:'헬멧',ar:'방탄복',pr:'주무기',hs:'권총',rg:'전술 조끼',bp:'배낭'};
 // [이름,가로,세로,종류,가격,옵션]
 const I={};
@@ -121,7 +121,7 @@ a('a2','6B2 방탄복',3,3,'ar',20000,{cls:2,dur:60});a('a3','PACA',3,3,'ar',280
 a('h1','우샨카',2,2,'hd',3000,{cls:1,dur:20});a('h2','Kolpak-1S',2,2,'hd',8000,{cls:2,dur:40});a('h3','ZSh-1-2M',2,2,'hd',22000,{cls:3,dur:50});a('h5','Altyn',2,2,'hd',46000,{cls:5,dur:60});
 a('r1','Belt-A',3,2,'rg',8000,{g:[4,2]});a('r2','Chest rig',3,3,'rg',18000,{g:[4,3]});a('r3','Tactec',3,3,'rg',26000,{g:[5,3]});a('r4','BlackRock',3,3,'rg',38000,{g:[4,4]});
 a('b1','스캐브 배낭',3,3,'bp',6000,{g:[4,4]});a('b2','Tri-zip',4,4,'bp',21000,{g:[5,5]});a('b3','Sling',3,3,'bp',16000,{g:[4,5]});a('b4','Berkut',4,4,'bp',48000,{g:[6,6]});a('b5','Pilgrim',4,4,'bp',70000,{g:[5,7]});
-a('band','붕대',1,1,'md',1500,{bl:1,u:1});a('car','차량 구급상자',1,1,'md',3000,{bl:1,heal:90,u:2});a('ai2','AI-2',1,1,'md',2500,{heal:60,u:1});a('sal','Salewa',1,2,'md',11000,{bl:1,heal:200,u:3});a('ifak','IFAK',2,1,'md',9000,{bl:1,heal:300,u:4});a('grizzly','Grizzly',2,2,'md',34000,{bl:1,sp:1,heal:1000,u:5});a('splint','부목',1,1,'md',4000,{sp:1,u:1});a('analgin','진통제',1,1,'md',2000,{heal:25,u:4});
+a('band','붕대',1,1,'md',1500,{bl:1,u:1});a('car','차량 구급상자',1,1,'md',3000,{bl:2,heal:90,u:2});a('ai2','AI-2',1,1,'md',2500,{heal:60,u:1});a('sal','Salewa',1,2,'md',11000,{bl:2,heal:200,u:3});a('ifak','IFAK',2,1,'md',9000,{bl:2,heal:300,u:4});a('grizzly','Grizzly',2,2,'md',34000,{bl:2,sp:1,heal:1000,u:5});a('splint','부목',1,1,'md',4000,{sp:1,u:1});a('analgin','진통제',1,1,'md',2000,{heal:25,pk:1,u:4});
 a('tush','통조림',1,1,'fd',3500,{en:35,u:2});a('wat','생수',1,2,'fd',2000,{hy:40,u:2});a('bar','초코바',1,1,'fd',1800,{en:20,u:1});a('mre','MRE',2,1,'fd',6000,{en:60,u:2});a('juice','주스',1,2,'fd',2500,{hy:25,en:10,u:1});
 a('btc','비트코인',1,1,'lt',180000);a('gpu','그래픽카드',2,2,'lt',95000);a('chain','금목걸이',1,1,'lt',60000);a('cpu','CPU',1,1,'lt',22000);a('wire','전선',1,1,'lt',8000);a('clock','시계',1,1,'lt',14000);a('lighter','라이터',1,1,'lt',15000);
 a('rolex','Roler 시계',1,1,'lt',220000);a('lion','청동 사자상',2,1,'lt',140000);a('phone','휴대폰',1,1,'lt',18000);a('ssd','SSD',1,1,'lt',16000);a('hdd','HDD',2,1,'lt',11000);a('tape','절연 테이프',1,1,'lt',5000);a('bolts','볼트',1,1,'lt',7000);a('matches','성냥',1,1,'lt',3000);a('tetriz','테트리즈',1,1,'lt',12000);
@@ -210,7 +210,7 @@ function render(){sync();const L=$('cL'),M=$('cM'),Rr=$('cR');L.innerHTML=M.inne
  else if(C.loot.w)Rr.appendChild(gridEl(C.loot,lootOpen.n||'루팅'));
  else Rr.innerHTML='<div class="lb">주변 루팅 대상이 없습니다 (상자/시체 앞에서 F)</div>'}
 function hpView(L,M,Rr){L.innerHTML='<div class="lb">캐릭터</div><div class="pt"></div>';
- M.innerHTML='<div class="lb">부위별 체력</div>'+Object.keys(PN).map(k=>{const r=P.hp[k]/P.mx[k];return `<div style="width:280px;margin:4px 0">${PN[k]} <b>${Math.round(P.hp[k])}/${P.mx[k]}</b><div style="height:8px;background:#222"><div style="height:8px;width:${r*100}%;background:${r<=0?'#555':r<.35?'#c0392b':r<.7?'#d49a2a':'#5a9a4a'}"></div></div></div>`}).join('')+`<div class="lb" style="margin-top:12px">상태</div><div>에너지 ${Math.round(P.en)} · 수분 ${Math.round(P.hy)}</div><div>${P.bl?'<span style="color:#e55">출혈 중</span> ':''}${P.fr?'<span style="color:#e90">골절</span> ':''}${P.bl||P.fr?'':'이상 없음'}</div>`;
+ M.innerHTML='<div class="lb">부위별 체력</div>'+Object.keys(PN).map(k=>{const r=P.hp[k]/P.mx[k];return `<div style="width:280px;margin:4px 0">${PN[k]} <b>${Math.round(P.hp[k])}/${P.mx[k]}</b><div style="height:8px;background:#222"><div style="height:8px;width:${r*100}%;background:${r<=0?'#555':r<.35?'#c0392b':r<.7?'#d49a2a':'#5a9a4a'}"></div></div></div>`}).join('')+`<div class="lb" style="margin-top:12px">상태</div><div>에너지 ${Math.round(P.en)} · 수분 ${Math.round(P.hy)}</div><div>${P.bl?'<span style="color:#e55">'+(P.bl>1?'큰 출혈':'가벼운 출혈')+'</span> ':''}${P.fr?'<span style="color:#e90">골절</span> ':''}${P.pn>.05||P.pt>0?'<span style="color:#d9a441">고통</span> ':''}${P.bl||P.fr||P.pn>.05||P.pt>0?'':'이상 없음'}</div>`;
  Rr.innerHTML='<div class="lb">의료·식량 (클릭하여 사용)</div>';
  CH.flatMap(k=>C[k].items).filter(i=>'md fd'.includes(I[i.k][3])).forEach(i=>{const b=document.createElement('button');b.className='s';b.innerHTML=`<img src="${icon(i.k)}" width="26" height="26" style="vertical-align:middle"> ${I[i.k][0]} x${i.n}`;b.onclick=()=>mode==='raid'?useIt(i):msg('레이드 중에만 사용할 수 있습니다');Rr.appendChild(b);Rr.appendChild(document.createElement('br'))})}
 let lastIt=null,lastT=0;
@@ -227,7 +227,7 @@ addEventListener('pointerup',e=>{if(!dr)return;const{c,it,el,ox,oy,r0,x0,y0}=dr;
    const px=Math.floor((e.clientX-gr.left)/CS),py=Math.floor((e.clientY-gr.top)/CS);
    const o=tc.items.find(o=>{const[w,h]=dim(o);return o.k===it.k&&I[o.k][3]==='am'&&o.n<60&&px>=o.x&&px<o.x+w&&py>=o.y&&py<o.y+h});
    const mg=I[it.k][3]==='am'&&tc.items.find(q=>{const[w,h]=dim(q);return I[q.k][3]==='mg'&&I[q.k][5].cal===I[it.k][5].cal&&(!q.mag||q.am===it.k)&&q.mag<I[q.k][5].cap&&px>=q.x&&px<q.x+w&&py>=q.y&&py<q.y+h});
-   if(mg){const t=Math.min(I[mg.k][5].cap-mg.mag,it.n);mg.mag+=t;mg.am=it.k;it.n-=t;if(it.n<=0)ok=1}else if(o){const t=Math.min(60-o.n,it.n);o.n+=t;it.n-=t;if(it.n<=0)ok=1}
+   if(mg){if(mode==='raid'&&window.raidLoad)window.raidLoad(tc,mg,it);else{const t=Math.min(I[mg.k][5].cap-mg.mag,it.n);mg.mag+=t;mg.am=it.k;it.n-=t;if(it.n<=0)ok=1}}else if(o){const t=Math.min(60-o.n,it.n);o.n+=t;it.n-=t;if(it.n<=0)ok=1}
    else{const sl=!!tc.acc,cx=sl?0:Math.round((e.clientX-ox-gr.left)/CS),cy=sl?0:Math.round((e.clientY-oy-gr.top)/CS);if(fits(tc,it,cx,cy)){it.x=cx;it.y=cy;tc.items.push(it);ok=1}}}}
  if(!ok){it.r=r0;it.x=x0;it.y=y0;c.items.push(it)}
  save();render()});
@@ -398,13 +398,13 @@ function shoot(w){const o=I[w.k][5],m=w.mg,a=m&&m.mag>0&&I[m.am]&&I[m.am][5];
  if(!a||w.jam){snd(.15,.03,3000);W.nx=now+.25;if(w.jam)msg('장전 불량 — R로 해제');return}
  if(R()<.007){w.jam=1;W.nx=now+.4;snd(.2,.04,2600);msg('장전 불량! R로 해제');return}
  m.mag--;W.nx=now+60/o.rpm;W.rc=Math.min(W.rc+1,10);
- const d=new THREE.Vector3();camera.getWorldDirection(d);const sp=(P.hp.la<=0||P.hp.ra<=0?.02:0)+(W.ads?.002:.01)+(pl.vx||pl.vz?.012:0)+W.rc*.0015;d.x+=(R()-.5)*sp;d.y+=(R()-.5)*sp;d.z+=(R()-.5)*sp;d.normalize();
+ const d=new THREE.Vector3();camera.getWorldDirection(d);const sp=(P.hp.la<=0||P.hp.ra<=0?.02:0)+(W.ads?.002:.01)+(pl.vx||pl.vz?.012:0)+W.rc*.0015+(P.pn||0)*.007;d.x+=(R()-.5)*sp;d.y+=(R()-.5)*sp;d.z+=(R()-.5)*sp;d.normalize();
  const org={x:camera.position.x,y:camera.position.y,z:camera.position.z},wt=ray(org,d,300);let bt=wt,be=null,bz=0;
  for(const e of EN){if(!e.alive)continue;const vx=e.x+(e.lx||0)-org.x,vz=e.z+(e.lz||0)-org.z,L=d.x*d.x+d.z*d.z;if(L<1e-6)continue;const t=(vx*d.x+vz*d.z)/L;if(t<=0||t>=bt)continue;
   const dx=vx-t*d.x,dz=vz-t*d.z,y=org.y+t*d.y;if(dx*dx+dz*dz<.2&&y>0&&y<1.95){bt=t;be=e;bz=y>1.55?2:y>.85?1:0}}
  trc(new THREE.Vector3(org.x+d.x*1.2-.1,org.y-.15+d.y*1.2,org.z+d.z*1.2),new THREE.Vector3(org.x+d.x*bt,org.y+d.y*bt,org.z+d.z*bt));
  if(be){let dm=a.dmg*[.7,1,3][bz];const c=bz===1?be.cls:bz===2?be.hc:0;if(c)dm=ahit(c,100,100,a.pen,dm).dm;be.hp-=dm;be.st='atk';be.seen=now;$('hm').style.opacity=1;setTimeout(()=>$('hm').style.opacity=0,90);if(be.hp<=0)kill(be)}
- const vv=vmG[w.k];if(vv){vv.userData.f.visible=true;setTimeout(()=>vv.userData.f.visible=false,45)}W.kick=Math.min(2,W.kick+1);snd(.5,.18,2200);const rc=o.rec*(.009+R()*.007)*(W.ads?.7:1);pl.pit+=rc;pl.rs+=rc;pl.yaw+=(R()-.5)*.014*o.rec;
+ const vv=vmG[w.k];if(vv){vv.userData.f.visible=true;setTimeout(()=>vv.userData.f.visible=false,45)}W.kick=Math.min(2,W.kick+1);snd(.5,.18,2200);const rc=o.rec*(.009+R()*.007)*(W.ads?.7:1)*(1+(P.pn||0)*.12);pl.pit+=rc;pl.rs+=rc;pl.yaw+=(R()-.5)*.014*o.rec;
  for(const e of EN)if(e.alive&&e.st!=='atk'&&Math.hypot(e.x-pl.x,e.z-pl.z)<90){e.st='srch';e.tx=pl.x;e.tz=pl.z}}
 function kill(e){e.alive=0;kills++;e.g.rotation.x=-PI/2;e.g.position.y=.3;const c={id:'loot',w:6,h:8,items:[]};
  if(e.pmc){const w=mk('ak');w.mg=mkm('mak74','ps',20+Math.floor(R()*10));place(c,w);place(c,mk(R()<.5?'a4':'a2'));place(c,mk('h2'));place(c,mk('r2'));place(c,mk('b2'));place(c,mk('sal'));place(c,mkm('mak74','ps',30));place(c,mk('ps',30+Math.floor(R()*30)));place(c,roll(3));place(c,roll(3))}
@@ -415,11 +415,11 @@ function hurt(dm,pen){let r=R(),part='th';for(const k in PW){if(r<PW[k]){part=k;
  const slot=part==='hd'?'hd':(part==='th'||(part==='st'&&R()<.6))?'ar':null,ar=slot&&C[slot].items[0];let prot=0,pk=0;
  if(ar){const o=I[ar.k][5],h=ahit(o.cls,ar.dur,o.dur,pen,dm);prot=1;pk=h.ok;ar.dur=Math.max(0,ar.dur-h.dl);dm=h.dm}
  P.hp[part]=Math.max(0,P.hp[part]-dm);
- if(!prot||R()<.3){if(R()<.25)P.bl=Math.max(P.bl,1);if(R()<.08)P.bl=2}fxHit(part,dm);
+ if(!prot||R()<.3){if(R()<.09)P.bl=2;else if(R()<.32)P.bl=Math.max(P.bl,1)}fxHit(part,dm);
  $('flash').style.opacity=1;setTimeout(()=>$('flash').style.opacity=0,180);msg(`피격: ${PN[part]}${prot?(pk?' · 관통':' · 방탄 차단'):''}`);
  if(P.hp.hd<=0||P.hp.th<=0)die('사망 (KIA)')}
-function useIt(it){if(A)return msg('다른 행동 중입니다');const o=I[it.k][5];act(`사용: ${I[it.k][0]}`,o.heal>100?3.5:2,()=>{
- if(o.bl)P.bl=0;if(o.sp)P.fr=0;
+function useIt(it){if(A)return msg('다른 행동 중입니다');const o=I[it.k][5];if(o.bl&&!o.heal&&o.bl<P.bl)return msg('큰 출혈은 붕대로 멎지 않습니다 (구급상자가 필요합니다)');act(`사용: ${I[it.k][0]}`,o.heal>100?3.5:2,()=>{
+ if(o.bl&&o.bl>=P.bl)P.bl=0;if(o.pk&&window.painKill)window.painKill();if(o.sp)P.fr=0;
  if(o.heal){let pool=o.heal;for(const k of Object.keys(P.hp).sort((a,b)=>P.hp[a]/P.mx[a]-P.hp[b]/P.mx[b])){const ad=Math.min(pool,P.mx[k]-P.hp[k]);P.hp[k]+=ad;pool-=ad;if(pool<=0)break}}
  if(o.en)P.en=Math.min(100,P.en+o.en);if(o.hy)P.hy=Math.min(100,P.hy+o.hy);
  if(--it.n<=0)rm(it);save();if($('inv').style.display==='flex')render()})}
@@ -456,7 +456,7 @@ addEventListener('keydown',e=>{keys[e.code]=1;if(e.code==='Tab'){e.preventDefaul
  if(e.code==='KeyR'&&dr)return rotDrag();if(mode!=='raid'||$('inv').style.display==='flex')return;
  if(e.code==='Digit1'&&C.pr.items[0])W.cur=W.cur==='pr'?null:'pr';if(e.code==='Digit2'&&C.hs.items[0])W.cur=W.cur==='hs'?null:'hs';
  if(e.code==='KeyR')reload();if(e.code==='KeyT'){const w=wpn();if(w)msg(`탄창 ${w.mg?w.mg.mag:0}/${w.mg?I[w.mg.k][5].cap:0} · 조끼 탄창: ${C.rgC.items.filter(i=>i.k===I[w.k][5].mgz&&i.mag).map(i=>i.mag).join(', ')||'없음'}`)}if(e.code==='KeyB'){const w=wpn();if(w&&I[w.k][5].auto){W.sel^=1;snd(.1,.03,1500);msg(`사격 모드: ${W.sel?'자동':'단발'}`)}else if(w)msg('이 무기는 단발 전용입니다')}if(e.code==='KeyC')pl.crouch^=1;
- if(e.code==='KeyH'){const f=k=>CH.map(c=>C[c].items).flat().find(i=>I[i.k][3]==='md'&&f2(i,k)),f2=(i,k)=>k?I[i.k][5].bl:I[i.k][5].heal;const it=(P.bl&&f(1))||f(0);if(it)useIt(it);else msg('의료품이 없습니다')}
+ if(e.code==='KeyH'){const f=k=>CH.map(c=>C[c].items).flat().find(i=>I[i.k][3]==='md'&&f2(i,k)),f2=(i,k)=>k?(I[i.k][5].bl||0)>=P.bl:I[i.k][5].heal;const it=(P.bl&&f(1))||f(0);if(it)useIt(it);else msg('의료품이 없습니다')}
  if(e.code==='KeyF'){const l=near();if(l)openLoot(l)}});
 addEventListener('keyup',e=>keys[e.code]=0);
 addEventListener('mousemove',e=>{if(mode!=='raid'||document.pointerLockElement!==$('cv'))return;const s=.0022*(W.ads?advSens():1);pl.yaw-=e.movementX*s;pl.pit=cl(pl.pit-e.movementY*s,-1.4,1.4)});
@@ -482,7 +482,7 @@ function updPlayer(dt){const inv=$('inv').style.display==='flex',busy=inv;
  pl.ch+=((pl.crouch?1.1:1.7)-pl.ch)*Math.min(1,dt*10);W.rc=Math.max(0,W.rc-dt*6);pl.pit=cl(pl.pit-0,-1.4,1.4);
  camera.position.set(pl.x,pl.y+pl.ch,pl.z);camera.rotation.set(pl.pit,pl.yaw,0);
  pl.ln+=((busy?0:(keys.KeyE?1:0)-(keys.KeyQ?1:0))-pl.ln)*Math.min(1,dt*9);
- {const sg=Math.sign(pl.ln)||1,wd=ray({x:pl.x,y:pl.y+pl.ch,z:pl.z},{x:Math.cos(pl.yaw)*sg,y:0,z:-Math.sin(pl.yaw)*sg},.8),off=Math.min(Math.abs(pl.ln)*.5,Math.max(0,wd-.3))*sg,sy=(W.ads?1.6:.6)*(P.st<30?2.2:1)*(1+wt/40);
+ {const sg=Math.sign(pl.ln)||1,wd=ray({x:pl.x,y:pl.y+pl.ch,z:pl.z},{x:Math.cos(pl.yaw)*sg,y:0,z:-Math.sin(pl.yaw)*sg},.8),off=Math.min(Math.abs(pl.ln)*.5,Math.max(0,wd-.3))*sg,sy=(W.ads?1.6:.6)*(P.st<30?2.2:1)*(1+wt/40)*(1+(P.pn||0)*1.6);
  camera.position.x+=Math.cos(pl.yaw)*off;camera.position.z-=Math.sin(pl.yaw)*off;camera.rotation.z=-pl.ln*.22;
  camera.rotation.x+=Math.sin(now*1.7)*.0008*sy;camera.rotation.y+=Math.cos(now*1.3)*.0008*sy;fxShake()}const tf=W.ads?adsFov():75;camera.fov+=(tf-camera.fov)*Math.min(1,dt*12);camera.updateProjectionMatrix();
  const wk=wpn()?wpn().k:null,v=wk?vm(wk):null;for(const k in vmG)vmG[k].visible=k===wk&&!scoped();fists.visible=!wk;
@@ -491,7 +491,7 @@ function updPlayer(dt){const inv=$('inv').style.display==='flex',busy=inv;
   v.position.x+=(tg[0]-v.position.x)*k2;v.position.y+=(tg[1]+bob-W.kick*.01-v.position.y)*k2;v.position.z+=(tg[2]+W.kick*.07-v.position.z)*k2;v.rotation.x=(pl.sprint?.4:0)+W.kick*.1}
  // 생존 수치
  P.en=Math.max(0,P.en-.06*dt);P.hy=Math.max(0,P.hy-.08*dt);
- if(P.bl){const ks=Object.keys(P.hp).filter(k=>P.hp[k]>0&&k!=='hd');const k=ks[Math.floor(R()*ks.length)];if(k)P.hp[k]=Math.max(0,P.hp[k]-P.bl*.7*dt);if(P.hp.th<=0)die('출혈 사망')}
+ if(P.bl){const ks=Object.keys(P.hp).filter(k=>P.hp[k]>0&&k!=='hd');const k=ks[Math.floor(R()*ks.length)];if(k)P.hp[k]=Math.max(0,P.hp[k]-(P.bl>1?1.5:.4)*dt);if(P.hp.th<=0)die('출혈 사망')}
  if(P.en<=0||P.hy<=0){P.hp.th=Math.max(0,P.hp.th-1.2*dt);if(P.hp.th<=0)die('탈진 사망')}
  if(A){A.t+=dt;$('actb').style.width=A.t/A.d*100+'%';if(A.t>=A.d){const f=A.fn;A=null;$('act').style.display='none';f()}}
  if(mdown&&!A&&!inv){const w=wpn();if(w&&(I[w.k][5].auto&&W.sel)&&now>=W.nx)shoot(w)}
@@ -525,7 +525,7 @@ function hud(){const m=Math.floor(T/60),s=Math.floor(T%60);$('tm').textContent=`
  const hd=((-pl.yaw*180/PI)%360+360)%360;let lm='외곽',bd=40;for(const z of ZN){const d=Math.hypot((z.x1+z.x2)/2-pl.x,(z.z1+z.z2)/2-pl.z);if(d<bd){bd=d;lm=z.n}}
  $('zn').textContent=`${DIR[Math.round(hd/45)%8]} ${Math.round(hd)}° · ${lm}`;
  let t=0;for(const k in P.hp){t+=P.hp[k];const r=P.hp[k]/P.mx[k];$('b_'+k).style.background=r<=0?'#111':r<.35?'#c0392b':r<.7?'#d49a2a':'#5a9a4a'}$('hpT').textContent=Math.round(t)+'/440';{const lo=cl(1-t/300,0,1);$('cv').style.filter=`saturate(${(.72-lo*.6).toFixed(2)}) contrast(1.12) brightness(${(.92-lo*.15).toFixed(2)}) blur(${(lo*1.2).toFixed(1)}px)`;$('vg').style.boxShadow=`inset 0 0 ${140+lo*160}px ${30+lo*40}px rgba(${lo>.05?'90,0,0':'0,0,0'},${.6+lo*.2})`}
- $('vit').innerHTML=`에너지 ${Math.round(P.en)} · 수분 ${Math.round(P.hy)}<br>스태미나 ${'█'.repeat(Math.round(P.st/10))} · ${tw().toFixed(0)}kg${P.bl?'<br><span style="color:#e55">출혈 중 (H: 치료)</span>':''}${P.fr?'<br><span style="color:#e90">골절 (부목 필요)</span>':''}`;
+ $('vit').innerHTML=`에너지 ${Math.round(P.en)} · 수분 ${Math.round(P.hy)}<br>스태미나 ${'█'.repeat(Math.round(P.st/10))} · ${tw().toFixed(0)}kg${P.bl?'<br><span style="color:#e55">'+(P.bl>1?'큰 출혈 (구급상자 H)':'가벼운 출혈 (붕대 H)')+'</span>':''}${P.pt>0||P.pn>.05?'<br><span style="color:#d9a441">고통'+(P.pn>.4?' — 진통제 필요':'')+'</span>':''}${P.pk>0?'<br><span style="color:#8fa770">진통제 효과 '+Math.ceil(P.pk)+'초</span>':''}${P.fr?'<br><span style="color:#e90">골절 (부목 필요)</span>':''}`;
  const w=wpn();let rs=0;if(w){const o=I[w.k][5];CH.forEach(k=>C[k].items.forEach(i=>{if(I[i.k][3]==='am'&&I[i.k][5].cal===o.cal)rs+=i.n}));$('amm').innerHTML=`${w.jam?'<span style="color:#e55">JAM</span>':w.mg?w.mg.mag:'-'}<small>${I[w.k][0]} · <b style="color:var(--ac)">[${o.auto?(W.sel?'자동':'단발'):'단발 전용'}]</b> · ${w.mg&&w.mg.am?I[w.mg.am][0]:'-'}</small>`}else $('amm').innerHTML='<small>맨손</small>'}
 function drawMap(){const g=$('mmap').getContext('2d'),S=.85,H=95,B=200,sh=new Set();g.clearRect(0,0,190,190);g.save();g.beginPath();g.arc(H,H,H-1,0,7);g.clip();g.fillStyle='#161b17';g.fillRect(0,0,190,190);
  g.translate(H,H);g.rotate(pl.yaw);g.translate(-pl.x*S,-pl.z*S);g.fillStyle='#232b22';g.fillRect(-B*S,-B*S,2*B*S,2*B*S);g.fillStyle='#34373a';
@@ -574,7 +574,7 @@ a('h6','Maska-1SCh',2,2,'hd',64000,{cls:4,dur:60});a('h7','Vulkan-5',2,2,'hd',12
 a('r5','Zulu',3,3,'rg',45000,{g:[6,4]});a('r6','Gen4 Assault',3,3,'rg',78000,{g:[7,4]});a('r7','Thunderbolt',3,3,'rg',130000,{g:[8,5]});
 a('b6','Takedown',4,4,'bp',60000,{g:[6,7]});a('b7','Blackjack 50',4,5,'bp',110000,{g:[7,8]});a('b8','Terraplane',5,5,'bp',200000,{g:[8,9]});
 // 의료 / 귀중품
-a('afak','AFAK',2,1,'md',18000,{bl:1,heal:400,u:5});a('cms','CMS',1,2,'md',9000,{bl:1,sp:1,heal:150,u:3});
+a('afak','AFAK',2,1,'md',18000,{bl:2,heal:400,u:5});a('cms','CMS',1,2,'md',9000,{bl:2,sp:1,heal:150,u:3});
 a('ledx','LedX',1,1,'lt',260000);a('vpx','VPX 플래시',1,1,'lt',80000);a('cofdm','COFDM 송신기',2,1,'lt',150000);a('ring','금 반지',1,1,'lt',120000);
 ['ak105','ak12','aks','hk416','mcx','scar','mp7','vec','svd','m700','p226','mscar','mvec','msvd','bs','map','m80','bs54','ap63','a7','a8','h6','h7','h8','r5','r6','r7','b6','b7','b8','afak','cms','ledx','vpx','cofdm','ring'].forEach(k=>LT.push([k,Math.max(.15,80/Math.pow(I[k][4]/1000+3,1.1))*(I[k][3]==='am'?2:1)]));
 TR[0].k.push('ak105','aks','p226','map','m80','mscar','mvec','msvd');
@@ -655,7 +655,8 @@ function raiderFire(dt){for(const e of EN){if(!e.alive||!e.raider)continue;e.rt-
 // 레이드 흐름 연결
 {const _b=build,_sp=spawn,_sr=startRaid,_k=kill,_ue=updEn;
  spawn=function(){DR.length=0;MAP==='lab'?spawnLab():_sp()};
- startRaid=function(){if(builtMap!==MAP){BOX=[];ZN=[];LOOTS=[];EN=[];EXS=[];vmG={};WM={};built=0;MAP==='lab'?buildLab():_b();built=1;builtMap=MAP}
+ window.ensureBuilt=function(force){if(force||builtMap!==MAP){BOX=[];ZN=[];LOOTS=[];EN=[];EXS=[];vmG={};WM={};built=0;MAP==='lab'?buildLab():_b();built=1;builtMap=MAP}};
+ startRaid=function(){ensureBuilt();
   _sr();labT=0;if(MAP==='lab'){T=1800;Object.assign(pl,{x:(R()-.5)*16,z:76,y:0,yaw:0});msg('랩 진입 · 레이더가 5분마다 등장합니다')}};
  kill=function(e){_k(e);if(!(e.lab||e.raider))return;const L=LOOTS[LOOTS.length-1],c=L.c;c.items=[];c.w=8;c.h=10;
   if(e.raider){L.n='레이더 시체';gunKit(pk(['ak12','hk416','mcx','scar','svd','vec']),c);place(c,mk(pk(['a7','a8'])));place(c,mk(pk(['h7','h8'])));place(c,mk(pk(['r6','r7'])));place(c,mk(pk(['b7','b8'])));place(c,mk('afak'));place(c,roll2(6));place(c,roll2(6));place(c,roll2(6))}
@@ -687,9 +688,9 @@ function cmenu(ev,c,it){ev.preventDefault();ev.stopPropagation();closeCm();if(it
  add('버리기',()=>dropIt(c,it));document.body.appendChild(d)}
 const CL={'545':'5.45x39','556':'5.56x45','762':'7.62x39/51','754':'7.62x54R','919':'9x19','918':'9x18'},DS={pr:'주무기 슬롯에 장착하는 총기입니다.',hs:'보조용 권총입니다.',am:'해당 구경의 총·탄창에 사용합니다. 관통력이 높을수록 방탄복을 잘 뚫습니다.',mg:'총기에 끼우는 탄창입니다. 탄약을 드래그해 채울 수 있습니다.',ar:'몸통 피해를 줄여 주는 방탄복입니다.',hd:'머리 피해를 줄여 주는 헬멧입니다.',rg:'조끼에는 탄창과 소지품을 넣을 수 있습니다.',bp:'배낭은 클수록 많은 전리품을 담을 수 있습니다.',md:'출혈·골절·체력을 회복합니다.',fd:'에너지와 수분을 회복합니다.',lt:'상인에게 비싸게 팔 수 있는 귀중품입니다.'};
 function detail(it){const o=I[it.k],p=o[5],t=o[3],s=[`분류: ${TN[t]}`,`가격: ${o[4].toLocaleString()}₽`,`무게: ${iw(it).toFixed(1)}kg`,`크기: ${o[1]}x${o[2]}`];
- if(p.cal)s.push(`구경: ${CL[p.cal]||p.cal}`);if(p.rpm)s.push(`발사속도 ${p.rpm}RPM · ${p.auto?'단발/자동':'단발 전용'} · 반동 ${p.rec}`);if(p.cap)s.push(`용량: ${p.cap}발 (현재 ${it.mag})`);
+ if(p.cal)s.push(`구경: ${CL[p.cal]||p.cal}`);if(p.rpm){s.push(`발사속도 ${p.rpm}RPM · ${p.auto?'단발/자동':'단발 전용'}`);if(window.recoilLines)s.push(...window.recoilLines(p))}if(p.cap)s.push(`용량: ${p.cap}발 (현재 ${it.mag})`);
  if(t==='am')s.push(`데미지 ${p.dmg} · 관통 ${p.pen}`);if(p.cls)s.push(`방어 ${p.cls}등급 · 내구 ${Math.round(it.dur)}/${p.dur}`);if(p.g)s.push(`수납 공간: ${p.g[0]}x${p.g[1]} (${p.g[0]*p.g[1]}칸)`);
- if(p.heal)s.push(`회복 ${p.heal} · 사용 ${p.u}회`);if(p.bl)s.push('출혈 치료');if(p.sp)s.push('골절 치료');if(p.en)s.push(`에너지 +${p.en}`);if(p.hy)s.push(`수분 +${p.hy}`);
+ if(p.heal)s.push(`회복 ${p.heal} · 사용 ${p.u}회`);if(p.bl)s.push(p.bl>1?'경미·큰 출혈 모두 치료':'경미한 출혈만 치료 (큰 출혈 불가)');if(p.pk)s.push('고통 억제 (5분)');if(p.sp)s.push('골절 치료');if(p.en)s.push(`에너지 +${p.en}`);if(p.hy)s.push(`수분 +${p.hy}`);
  const d=document.createElement('div');d.id='dt';d.innerHTML=`<div><img src="${icon(it.k)}" width="64" height="64" style="float:right"><h3 style="color:#c49a45">${o[0]}</h3><p style="color:#9aa3ac;margin:6px 0">${DS[t]||''}</p>${s.join('<br>')}<br><br><button onclick="this.closest('#dt').remove()">닫기</button></div>`;d.onclick=e=>{if(e.target===d)d.remove()};document.body.appendChild(d)}
 function dropIt(c,it){if((c.id==='rg'&&C.rgC.items.length)||(c.id==='bp'&&C.bpC.items.length))return msg('먼저 내부 아이템을 비우세요');
  if(mode!=='raid'&&!confirm(`${I[it.k][0]}을(를) 영구 삭제할까요?`))return;
@@ -952,7 +953,7 @@ function hpView(L,M,Rr){const pr=portrait(),keys_=Object.keys(PN);let tot=0,mx=0
   for(const k of keys_){const r=P.hp[k]/P.mx[k];h+=`<div class="hrow"><span>${PN[k]}</span><div class="hbar"><div style="width:${Math.max(0,r)*100}%;background:${HC(r)}"></div></div><b>${Math.round(P.hp[k])}/${P.mx[k]}</b>${P.fx[k]?'<i class="hfx2">골절</i>':''}${r<=0?'<i class="hfx2" style="color:#999;border-color:#666">파괴</i>':''}</div>`}
   // 상태 이상
   const ef=[],aN=(P.fx.la?1:0)+(P.fx.ra?1:0);
-  if(P.bl)ef.push(`<span style="color:#e55">🩸 ${P.bl>1?'심한 출혈':'경미한 출혈'}</span> — 시간이 갈수록 체력 감소 (붕대/구급상자 H)`);
+  if(P.bl)ef.push(P.bl>1?`<span style="color:#e55">🩸 큰 출혈</span> — 체력이 빠르게 감소 (구급상자·IFAK 등 필요, 붕대로는 멎지 않음)`:`<span style="color:#e55">🩸 가벼운 출혈</span> — 체력이 서서히 감소 (붕대 또는 구급상자)`);if(P.pt>0||P.pn>.05)ef.push(`<span style="color:#d9a441">⚡ 고통</span> — ${P.pk>0?'진통제로 억제 중':'시야가 어두워지고 조준이 불안정 (진통제)'}`);
   if(aN===1)ef.push(`<span style="color:#ffb347">✚ ${P.fx.la?'왼팔':'오른팔'} 골절</span> — 조준 시 손이 살짝 떨림`);
   if(aN===2)ef.push('<span style="color:#ffb347">✚ 양팔 골절</span> — 조준 시 손이 크게 떨림');
   for(const k of['ll','rl'])if(P.fx[k])ef.push(`<span style="color:#ffb347">✚ ${PN[k]} 골절</span> — ${P.fx.ll&&P.fx.rl?'양다리 골절: 달리기/점프 불가, 두 다리 체력 감소':'뛸 수는 있지만 이 다리 체력이 서서히 감소'}`);
@@ -1066,7 +1067,7 @@ function pose(){const u=GR.t,K=GR.k;let H,rx=0,l=null;
  GH.position.set(...H);GH.rotation.x=rx;const E=new V3(.42,-.7,.3),Hv=new V3(...H),d=Hv.clone().sub(E);GA.scale.z=d.length();GA.position.copy(E).add(Hv).multiplyScalar(.5);GA.quaternion.setFromUnitVectors(new V3(0,0,1),d.normalize());
  GL.visible=GRg.visible=!!l&&GR.st==='pin'&&GR.t<.5;if(l){GL.position.set(...l);GRg.position.set(l[0]+.02,l[1]+.03,l[2])}}
 function grExit(keep){GR.on=0;GR.st='ready';GR.rel=0;if(GV)GV.visible=false;if(keep!==0)W.cur=GR.prev}
-function grEnter(){if(mode!=='raid'||$('inv').style.display==='flex'||A)return;if(!findG())return msg('수류탄이 없습니다 (조끼·주머니·배낭)');if(!GV)buildGV();GR.on=1;GR.prev=W.cur;W.cur=null;GR.st='ready';GR.t=0;GR.rel=0;GV.visible=true;GH.userData.g.visible=true;msg('수류탄 — 좌클릭 꾹: 핀 제거(놓으면 투척) · 우클릭 꾹: 굴리기 · G: 집어넣기')}
+function grEnter(){if(mode!=='raid'||$('inv').style.display==='flex'||A)return;if(!findG())return msg('수류탄이 없습니다 (조끼·주머니·배낭)');if(GV&&GV.parent!==camera)camera.add(GV);if(!GV)buildGV();GR.on=1;GR.prev=W.cur;W.cur=null;GR.st='ready';GR.t=0;GR.rel=0;GV.visible=true;GH.userData.g.visible=true;msg('수류탄 — 좌클릭 꾹: 핀 제거(놓으면 투척) · 우클릭 꾹: 굴리기 · G: 집어넣기')}
 function lock(){if(document.pointerLockElement!==$('cv')){try{$('cv').requestPointerLock()}catch(x){}}}
 addEventListener('keydown',e=>{if(e.repeat)return;
  if(e.code==='KeyG'&&mode==='raid'){if(!GR.on)grEnter();else if(GR.st==='ready')grExit()}
@@ -1163,5 +1164,5 @@ function aiTick(dt){AL=EN.filter(e=>e.alive&&Math.hypot(e.x-pl.x,e.z-pl.z)<170);
 gift();
 })();
 </script>
-<script src="config.js"></script><script src="online.js"></script>
+<script src="gameplay.js"></script><script src="config.js"></script><script src="online.js"></script>
 </body></html>

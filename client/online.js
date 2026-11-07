@@ -93,7 +93,7 @@ function showAuth(err) {
   box(el('div', { class: 'ol-tabs' },
     el('button', { type: 'button', class: reg ? '' : 'on', text: '로그인', onclick: () => { authTab = 'login'; showAuth(); } }),
     el('button', { type: 'button', class: reg ? 'on' : '', text: '회원가입', onclick: () => { authTab = 'reg'; showAuth(); } })), form);
-  setTimeout(() => form.elements.id.focus(), 30);
+  setTimeout(() => { const f = document.activeElement; if (!f || f === document.body || !form.contains(f)) form.elements.id.focus(); }, 30);   // 이미 다른 칸을 누른 뒤라면 포커스를 빼앗지 않음
 }
 
 function showNick(err) {
@@ -186,7 +186,12 @@ function connectWS() {
     if (m.t === 'state') { S = m; renderAll(); return; }
     if (m.t === 'toast') return toast(m.m);
     if (m.t === 'err') return toast(m.m, true);
-    if (m.t === 'start') return onStart(m);
+    if (m.t === 'launch') return onLaunch(m);
+    if (m.t === 'go') return onGo(m);
+    if (m.t === 'abort') return onAbort(m);
+    if (m.t === 'pos') return onPos(m);
+    if (m.t === 'ehit') return onEnemyHit(m);
+    if (m.t === 'pgone') return removeMate(m.n);
   };
   ws.onclose = ev => {
     wsOpen = false; S = null; renderAll();
@@ -205,19 +210,156 @@ function syncStatus(force) {
 setInterval(() => { syncStatus(); layout(); }, 500);
 setInterval(() => { if (wsOpen) { lastStatus = null; syncStatus(true); } }, 20000);
 
-/* ============================== 플레이 (파티 준비 → 동시 시작) ============================== */
-const _pmc = playPMC, _scav = playScav;
+/* ============================== 파티 출격 ==============================
+ * 방장이 맵/모드 선택 → 파티원은 [준비완료]만 → 방장이 [출발] → 전원 로딩바 → 동시에 시작(같은 시드/같은 스폰)
+ */
+const _openPlay = openPlay, _pmc = playPMC, _scav = playScav;
 const startDirect = m => (m === 'scav' ? _scav() : _pmc());
-function play(m) {
-  if (S && S.party && wsOpen) { send({ t: 'party:ready', mode: m }); return; }   // 파티: 서버가 전원 준비를 확인한 뒤 start 신호를 보냄
-  startDirect(m);                                                                // 솔로: 즉시 출격
+openPlay = function () {
+  if (S && S.party && wsOpen) { lobbyOpen = true; renderAll(); return; }     // 파티 중: 파티 출격 화면
+  _openPlay();                                                              // 솔로: 기존 출격 모드 선택
+};
+function mulberry32(a) { return function () { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+const MAPN = { customs: '세관 (CUSTOMS)', lab: '랩 (LABS)' }, MODEN = { pmc: 'PMC', scav: '스캐브' };
+let lobbyOpen = false, launching = null, RD = null;   // RD: 현재 파티 레이드 정보
+
+const paint = () => new Promise(r => requestAnimationFrame(() => setTimeout(r, 60)));
+async function onLaunch(m) {
+  const t0 = performance.now();
+  launching = m; lobbyOpen = false; renderAll();
+  await paint();                                               // 로딩 화면이 먼저 그려지도록
+  try {
+    setMap(m.map);
+    SRN = mulberry32(m.seed >>> 0);                            // 모두 같은 시드 → 같은 맵 구조
+    if (window.ensureBuilt) window.ensureBuilt(true);
+  } catch (e) { console.warn('맵 준비 실패', e); } finally { SRN = null; }
+  const rest = 1200 - (performance.now() - t0);                // 로딩바가 너무 순식간에 지나가지 않도록 최소 1.2초 표시
+  if (rest > 0) await new Promise(r => setTimeout(r, rest));
+  if (launching === m) send({ t: 'party:loaded' });                  // "나는 준비 끝" → 서버가 전원 완료를 기다렸다가 go
 }
-playPMC = () => play('pmc');
-playScav = () => play('scav');
-function onStart(m) {
-  toast('전원 준비 완료 — 출격합니다!');
-  try { closePlay(); } catch (e) { /* noop */ }
-  startDirect(m.mode);
+function onGo(m) {
+  launching = null; lobbyOpen = false;
+  const n = m.party.length, idx = Math.max(0, m.party.indexOf(me.nick));
+  RD = { id: m.raidId, names: m.party, idx, n, t0: performance.now() };
+  renderAll();
+  SRN = mulberry32((m.seed ^ 0x9e3779b9) >>> 0);               // 전리품/적 초기 배치도 동일
+  try { startDirect(m.mode); } finally { SRN = null; }
+  // 같은 스폰 지점 (파티원끼리는 겹치지 않게 2.2m 간격)
+  const r = mulberry32((m.seed ^ 0x51ed270b) >>> 0)(), off = (idx - (n - 1) / 2) * 2.2;
+  if (m.map === 'lab') { pl.x = (r - 0.5) * 16 + off; pl.z = 76; } else { pl.x = (r - 0.5) * 300 + off; pl.z = 190; }
+  pl.y = 0; pl.yaw = 0;
+  toast('전원 준비 완료 — 출격!');
+}
+function onAbort(m) { launching = null; renderAll(); toast(m.why || '출발이 취소되었습니다.', true); }
+
+/* ---- 레이드 중 팀원 표시 (위치 공유) ---- */
+const mates = new Map();
+function mateModel() {
+  const g = new THREE.Group(), M = c => new THREE.MeshLambertMaterial({ color: c });
+  const bx = (w, h, d, x, y, z, m) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); g.add(o); return o; };
+  const skin = M(0xc89b7b), vest = M(0x2f6f9f), pants = M(0x34404a), boot = M(0x15110e);
+  bx(.36, .56, .2, 0, 1.2, 0, vest); bx(.13, .85, .15, -.1, .43, 0, pants); bx(.13, .85, .15, .1, .43, 0, pants);
+  bx(.14, .1, .2, -.1, .05, .03, boot); bx(.14, .1, .2, .1, .05, .03, boot);
+  bx(.09, .55, .09, -.25, 1.2, 0, vest); bx(.09, .55, .09, .25, 1.2, 0, vest);
+  const h = new THREE.Mesh(new THREE.SphereGeometry(.12, 12, 10), skin); h.position.y = 1.65; g.add(h);
+  bx(.3, .09, .3, 0, 1.74, 0, M(0x2b3a2b));
+  return g;
+}
+function mateTag(n) { const t = el('div', { class: 'ol-tag', text: n }); document.body.append(t); return t; }
+function removeMate(n) { const m = mates.get(n); if (!m) return; if (m.g.parent) m.g.parent.remove(m.g); m.tag.remove(); mates.delete(n); }
+function onPos(m) {
+  if (!RD || mode !== 'raid' || m.n === me.nick) return;
+  let e = mates.get(m.n);
+  if (!e) { try { e = { g: mateModel(), tag: mateTag(m.n), first: true }; } catch (x) { return; } mates.set(m.n, e); }
+  Object.assign(e, { tx: m.x, ty: m.y, tz: m.z, tyaw: m.yaw, c: m.c, last: performance.now() });
+}
+const _v = (typeof THREE !== 'undefined' && THREE.Vector3) ? new THREE.Vector3() : null;
+function mateLoop() {
+  requestAnimationFrame(mateLoop);
+  const live = RD && mode === 'raid';
+  for (const [n, e] of mates) {
+    if (!live || performance.now() - e.last > 4000) { removeMate(n); continue; }
+    try {
+      if (e.g.parent !== scene) scene.add(e.g);                  // 맵이 다시 만들어졌으면 새 씬에 붙임
+      const p = e.g.position;
+      if (e.first) { p.set(e.tx, e.ty, e.tz); e.g.rotation.y = e.tyaw + Math.PI; e.first = false; }
+      p.x += (e.tx - p.x) * .3; p.y += (e.ty - p.y) * .3; p.z += (e.tz - p.z) * .3;
+      let d = (e.tyaw + Math.PI) - e.g.rotation.y; d = Math.atan2(Math.sin(d), Math.cos(d)); e.g.rotation.y += d * .3;
+      e.g.scale.y = e.c ? .78 : 1;
+      _v.set(p.x, p.y + (e.c ? 1.55 : 1.95), p.z).project(camera);
+      const dist = Math.hypot(p.x - pl.x, p.z - pl.z);
+      const vis = _v.z < 1 && Math.abs(_v.x) < 1.05 && Math.abs(_v.y) < 1.05 && dist < 150;
+      e.tag.style.display = vis ? 'block' : 'none';
+      if (vis) { e.tag.style.left = ((_v.x + 1) / 2 * innerWidth) + 'px'; e.tag.style.top = ((1 - _v.y) / 2 * innerHeight) + 'px'; e.tag.textContent = `${n} · ${Math.round(dist)}m`; }
+    } catch (x) { /* 씬 교체 중 등 */ }
+  }
+}
+if (_v) requestAnimationFrame(mateLoop);
+/* ---- 적 피해/처치 공유 ---- */
+function onEnemyHit(m) {
+  if (!RD || mode !== 'raid') return;
+  const e = EN[m.i];
+  if (!e || !e.alive || !(m.hp < e.hp)) return;
+  e.hp = m.hp; e._shp = e.hp;
+  if (e.st !== 'atk') { e.st = 'atk'; e.seen = now; }
+  if (e.hp <= 0) { try { kill(e); } catch (x) { /* 이미 처치됨 */ } }
+}
+function syncEnemies() {
+  for (let i = 0; i < EN.length; i++) {
+    const e = EN[i];
+    if (e._shp === undefined) e._shp = e.hp;
+    if (e.hp < e._shp) { e._shp = e.hp; ws.send(JSON.stringify({ t: 'ehit', i, hp: Math.round(e.hp * 10) / 10 })); }
+  }
+}
+setInterval(() => {            // 내 위치를 10Hz로 공유
+  if (RD && mode === 'raid' && wsOpen) ws.send(JSON.stringify({ t: 'pos', x: +pl.x.toFixed(2), y: +pl.y.toFixed(2), z: +pl.z.toFixed(2), yaw: +pl.yaw.toFixed(3), c: pl.crouch ? 1 : 0 }));
+  if (RD && mode === 'raid' && wsOpen) syncEnemies();
+  if (RD && mode !== 'raid' && performance.now() - RD.t0 > 3000) { RD = null; for (const n of [...mates.keys()]) removeMate(n); }
+}, 100);
+
+/* ---- 파티 출격 화면 (맵 선택 / 준비 / 출발) 과 로딩바 ---- */
+const lobby = el('div', { id: 'olLobby', class: 'ol' }); document.body.append(lobby);
+const loadBox = el('div', { id: 'olLoad', class: 'ol' }); document.body.append(loadBox);
+
+function renderLobby() {
+  const P = S && S.party;
+  if (!lobbyOpen || !P || P.phase === 'loading' || launching) { lobby.classList.remove('on'); return; }
+  const L = P.isLeader, others = P.members.filter(m => !m.leader), readyN = others.filter(m => m.ready).length, allReady = readyN === others.length;
+  const me_ = P.members.find(m => m.nick === me.nick);
+  const opt = (label, on, disabled, fn) => el('button', { class: 'ol-opt' + (on ? ' on' : ''), text: label, disabled: disabled || !L, onclick: fn });
+  lobby.replaceChildren(el('div', { class: 'ol-modal' },
+    el('h3', { text: '파티 출격' }),
+    el('div', { class: 'ol-sec', text: L ? '맵 선택 (방장)' : '맵 (방장이 선택)' }),
+    el('div', { class: 'ol-opts' }, ...['customs', 'lab'].map(k => opt(MAPN[k] + (k === 'lab' ? ' · 실내 · PMC 전용' : ''), P.map === k, false, () => send({ t: 'party:setup', map: k, mode: P.mode })))),
+    el('div', { class: 'ol-sec', text: '모드' }),
+    el('div', { class: 'ol-opts' }, ...['pmc', 'scav'].map(k => opt(k === 'pmc' ? 'PMC (내 장비)' : '스캐브 (랜덤 장비)', P.mode === k, P.map === 'lab' && k === 'scav', () => send({ t: 'party:setup', map: P.map, mode: k })))),
+    el('div', { class: 'ol-sec', text: `파티원 (${P.members.length}/${P.max})` }),
+    ...P.members.map(m => el('div', { class: 'ol-row' },
+      el('span', { class: 'dot ' + (m.online ? (m.status === 'raid' ? 'raid' : 'on') : 'off') }),
+      el('span', { class: 'nm' }, m.leader ? el('span', { class: 'ol-crown', text: '♛' }) : '', m.nick, m.nick === me.nick ? el('span', { class: 'sub', text: '나' }) : ''),
+      m.leader ? el('span', { class: 'ol-wt', text: '방장' }) : m.ready ? el('span', { class: 'ol-rd', text: '준비완료 ✓' }) : el('span', { class: 'ol-wt', text: m.status === 'raid' ? '출격 중' : '대기 중' }))),
+    el('div', { class: 'ol-hint', text: L ? (allReady ? '모든 파티원이 준비되었습니다. 출발하면 전원이 로딩을 마친 뒤 같은 스폰에서 시작합니다.' : `파티원이 준비완료를 눌러야 출발할 수 있습니다. (${readyN}/${others.length})`) : (me_ && me_.ready ? '준비완료! 방장이 출발하길 기다리는 중…' : '맵은 방장이 정합니다. 준비되면 [준비완료]를 누르세요.') }),
+    el('div', { class: 'ol-btns' },
+      L ? el('button', { class: 'go', text: '출발', disabled: !allReady, onclick: () => send({ t: 'party:launch' }) })
+        : el('button', { class: 'go', text: me_ && me_.ready ? '준비 취소' : '준비완료', onclick: () => send({ t: 'party:ready', on: !(me_ && me_.ready) }) }),
+      el('button', { class: 'ol-opt', text: '닫기', onclick: () => { lobbyOpen = false; renderAll(); } }))));
+  lobby.classList.add('on');
+}
+
+function renderLoad() {
+  const P = S && S.party, on = !!(launching || (P && P.phase === 'loading'));
+  if (!on) { loadBox.classList.remove('on'); return; }
+  const mp = launching ? launching.map : P && P.map, md = launching ? launching.mode : P && P.mode;
+  const members = P ? P.members : [], done = members.filter(m => m.loaded).length, total = members.length || 1;
+  loadBox.replaceChildren(el('div', { class: 'ol-modal ol-loadm' },
+    el('h3', { text: `${MAPN[mp] || ''} · ${MODEN[md] || ''}` }),
+    el('div', { class: 'ol-hint', text: done < total ? '모든 파티원이 준비될 때까지 기다리는 중…' : '출발!' }),
+    el('div', { class: 'ol-pbar' }, el('i', { style: `width:${Math.max(6, Math.round(done / total * 100))}%` })),
+    el('div', { class: 'ol-pnum', text: `${done} / ${total} 준비 완료` }),
+    ...members.map(m => el('div', { class: 'ol-row' }, el('span', { class: 'nm' }, m.leader ? el('span', { class: 'ol-crown', text: '♛' }) : '', m.nick),
+      m.loaded ? el('span', { class: 'ol-rd', text: '✓ 완료' }) : el('span', { class: 'ol-wt ol-spin', text: '맵 불러오는 중…' }))),
+    el('div', { class: 'ol-btns' }, el('button', { class: 'ol-opt', text: '취소', onclick: () => send({ t: 'party:abort' }) }))));
+  loadBox.classList.add('on');
 }
 
 /* ============================== 홈 화면 소셜 UI ============================== */
@@ -244,7 +386,7 @@ const modeTxt = m => (m === 'pmc' ? 'PMC' : m === 'scav' ? '스캐브' : '');
 function renderAll() {
   const incoming = S ? S.incoming.length + S.invites.length : 0;
   friendsBtn.replaceChildren(wsOpen || !loggedIn ? '👥 친구' : '👥 친구 (연결 중…)', incoming ? el('span', { class: 'bdg', text: incoming }) : '');
-  renderPanel(); renderParty(); renderInvites(); layout();
+  renderPanel(); renderParty(); renderInvites(); renderLobby(); renderLoad(); layout();
 }
 
 function renderPanel() {
@@ -281,18 +423,13 @@ function renderPanel() {
 
 function renderParty() {
   const P = S && S.party;
-  if (!P) { pwidget.replaceChildren(); return; }
-  const mine = P.members.find(m => m.nick === me.nick);
-  const waiting = mine && mine.ready;
-  const readyN = P.members.filter(m => m.ready).length;
+  if (!P) { pwidget.replaceChildren(); lobbyOpen = false; return; }
   pwidget.replaceChildren(
     el('div', { class: 'ph' }, el('span', { text: '파티' }), el('span', { text: `${P.members.length}/${P.max}` })),
     ...P.members.map(m => el('div', { class: 'pm' }, el('span', { class: 'dot ' + (m.online ? (m.status === 'raid' ? 'raid' : 'on') : 'off') }),
       el('span', { class: 'nm' }, m.leader ? el('span', { class: 'ol-crown', text: '♛' }) : '', m.nick),
-      m.ready ? el('span', { class: 'ol-rd', text: '✓ 준비' }) : el('span', { class: 'ol-wt', text: m.status === 'raid' ? '출격 중' : '…' }))),
-    waiting
-      ? el('div', { class: 'pf wait' }, `다른 파티원을 기다리는 중… (${readyN}/${P.members.length})`, el('button', { class: 's', text: '준비 취소', onclick: () => send({ t: 'party:unready' }) }))
-      : el('div', { class: 'pf' }, P.isLeader ? '방장도, 파티원도 [플레이]에서 모드를 선택해야 시작됩니다.' : '[플레이]에서 모드를 선택하면 준비됩니다. 방장도 준비해야 시작됩니다.')
+      m.leader ? el('span', { class: 'ol-wt', text: '방장' }) : m.ready ? el('span', { class: 'ol-rd', text: '✓ 준비' }) : el('span', { class: 'ol-wt', text: m.status === 'raid' ? '출격 중' : '…' }))),
+    el('div', { class: 'pf' }, P.isLeader ? '[플레이]를 눌러 맵을 고르고, 파티원이 준비완료하면 출발하세요.' : '[플레이]를 눌러 준비완료하세요. 맵은 방장이 고릅니다.')
   );
 }
 
