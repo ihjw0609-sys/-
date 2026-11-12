@@ -531,7 +531,16 @@ function handle(ws, uid, m) {
       const p = parties.get(userParty.get(uid));
       if (!p || status.get(uid) !== 'raid') return;
       const f = k => (Number.isFinite(m[k]) ? Math.max(-1000, Math.min(1000, m[k])) : 0);
-      const msg = { t: 'pos', n: u.nick, x: f('x'), y: f('y'), z: f('z'), yaw: f('yaw'), c: m.c ? 1 : 0, w: m.w ? 1 : 0 };
+      const msg = { t: 'pos', n: u.nick, x: f('x'), y: f('y'), z: f('z'), yaw: f('yaw'), c: m.c ? 1 : 0, w: m.w ? 1 : 0, s: m.s ? 1 : 0, q: m.q ? 1 : 0, g: (typeof m.g === 'string' && /^[A-Za-z0-9_]{1,16}$/.test(m.g)) ? m.g : '' };
+      for (const mm of p.members) if (mm !== uid && status.get(mm) === 'raid') sendTo(mm, msg);
+      break;
+    }
+    /* ---- 총소리 공유: 쏜 위치와 무기 종류만 같은 레이드의 파티원에게 전달 ---- */
+    case 'shot': {
+      const p = parties.get(userParty.get(uid));
+      if (!p || status.get(uid) !== 'raid') return;
+      const f = k => (Number.isFinite(m[k]) ? Math.max(-1000, Math.min(1000, m[k])) : 0);
+      const msg = { t: 'shot', n: u.nick, x: f('x'), z: f('z'), h: m.h ? 1 : 0 };
       for (const mm of p.members) if (mm !== uid && status.get(mm) === 'raid') sendTo(mm, msg);
       break;
     }
@@ -553,7 +562,7 @@ function onConnect(ws) {
   const authTimer = setTimeout(() => { if (!uid) ws.close(4001); }, 5000);
   const rateTimer = setInterval(() => { ws.rate = 0; }, 1000);
   ws.onmessage = raw => {
-    if (++ws.rate > 60) return ws.close(4008);
+    if (++ws.rate > 120) return ws.close(4008);
     let m; try { m = JSON.parse(raw); } catch (e) { return; }
     if (!m || typeof m.t !== 'string') return;
     if (!uid) {

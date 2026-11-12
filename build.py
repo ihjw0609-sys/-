@@ -28,13 +28,13 @@ assert src.rstrip().endswith('</body></html>') or src.rstrip().endswith('</html>
 out = src.replace('</head><body>', '<link rel="stylesheet" href="online.css"></head><body>' + GUARD, 1)
 idx = out.rfind('</body>')
 assert idx > 0
-out = out[:idx] + '<script src="gameplay.js"></script><script src="config.js"></script><script src="online.js"></script>\n' + out[idx:]
+out = out[:idx] + '<script src="soldier_data.js"></script><script src="soldier.js"></script><script src="gameplay.js"></script><script src="config.js"></script><script src="online.js"></script>\n' + out[idx:]
 
 os.makedirs(os.path.join(root, 'docs'), exist_ok=True)
 open(os.path.join(root, 'docs', 'index.html'), 'w', encoding='utf8').write(out)
 cfg = os.path.join(root, 'docs', 'config.js')
 if not os.path.exists(cfg):
     open(cfg, 'w', encoding='utf8').write("// 서버 주소를 여기에 적으세요 (예: 'https://shadow-ext.onrender.com'). 비우면 이 페이지와 같은 주소를 사용합니다.\nwindow.SE_SERVER = '';\n")
-for f in ('online.css', 'online.js', 'gameplay.js'):
+for f in ('online.css', 'online.js', 'gameplay.js', 'soldier.js', 'soldier_data.js'):
     shutil.copy(os.path.join(root, 'client', f), os.path.join(root, 'docs', f))
 print('built docs/index.html', len(out), 'bytes')

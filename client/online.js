@@ -192,6 +192,7 @@ function connectWS() {
     if (m.t === 'pos') return onPos(m);
     if (m.t === 'ehit') return onEnemyHit(m);
     if (m.t === 'pgone') return removeMate(m.n);
+    if (m.t === 'shot') return onShot(m);
   };
   ws.onclose = ev => {
     wsOpen = false; S = null; renderAll();
@@ -254,16 +255,54 @@ function onAbort(m) { launching = null; renderAll(); toast(m.why || '출발이 �
 
 /* ---- 레이드 중 팀원 표시 (위치 공유) ---- */
 const mates = new Map();
+// 아군 모델: 군인 3D 캐릭터(soldier.js). 불러오지 못하면 기존 박스 모델로 대체
 function mateModel() {
+  try {
+    if (window.SOLDIER && SOLDIER.ready) {
+      const g = new THREE.Group(), ch = SOLDIER.makeChar('friend', 1);
+      g.add(ch.root); g.userData.sol = ch; SOLDIER.relaxArms(ch);
+      return g;
+    }
+  } catch (x) { console.warn('아군 군인 모델 실패 — 박스 모델 사용', x); }
+  return mateModelBox();
+}
+function mateModelBox() {
   const g = new THREE.Group(), M = c => new THREE.MeshLambertMaterial({ color: c });
   const bx = (w, h, d, x, y, z, m) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); g.add(o); return o; };
   const skin = M(0xc89b7b), vest = M(0x2f6f9f), pants = M(0x34404a), boot = M(0x15110e);
   bx(.36, .56, .2, 0, 1.2, 0, vest); bx(.13, .85, .15, -.1, .43, 0, pants); bx(.13, .85, .15, .1, .43, 0, pants);
   bx(.14, .1, .2, -.1, .05, .03, boot); bx(.14, .1, .2, .1, .05, .03, boot);
-  bx(.09, .55, .09, -.25, 1.2, 0, vest); bx(.09, .55, .09, .25, 1.2, 0, vest);
+  // 팔: 어깨(y=1.47)를 축으로 회전할 수 있게 pivot 그룹으로 만듦 (총을 들면 앞으로 뻗음)
+  const arm = sx => { const pv = new THREE.Group(); pv.position.set(sx, 1.47, 0); const o = new THREE.Mesh(new THREE.BoxGeometry(.09, .55, .09), vest); o.position.y = -.275; pv.add(o); g.add(pv); return pv; };
+  g.userData.arms = [arm(-.25), arm(.25)];
   const h = new THREE.Mesh(new THREE.SphereGeometry(.12, 12, 10), skin); h.position.y = 1.65; g.add(h);
   bx(.3, .09, .3, 0, 1.74, 0, M(0x2b3a2b));
   return g;
+}
+// 팀원이 들고 있는 무기를 모델에 장착/교체 (key = 아이템 키, 빈 문자열이면 맨손)
+function setMateGun(e, key) {
+  key = key || '';
+  if (e.gk === key) return;
+  e.gk = key;
+  if (e.gun) { e.g.remove(e.gun); e.gun = null; }
+  const o = key && typeof I !== 'undefined' && I[key] && I[key][5];
+  if (o && typeof o.mdl === 'string' && typeof gunMesh === 'function') {
+    try {
+      const gun = gunMesh(o);
+      const sol = e.g.userData.sol;
+      if (sol) SOLDIER.holdGun(sol, gun, o.mdl);   // 양손이 총의 손잡이/핸드가드를 잡도록 팔 자세 계산
+      else { gun.rotation.y = Math.PI; gun.position.set(.07, 1.33, .12); }   // 총구가 캐릭터 앞(+z)을 향하도록
+      if (gun.userData.f) gun.userData.f.visible = false;
+      e.g.add(gun); e.gun = gun;
+    } catch (x) { e.gun = null; }
+  }
+  const sol = e.g.userData.sol;
+  if (sol && !e.gun) SOLDIER.relaxArms(sol);
+  const [aL, aR] = e.g.userData.arms || [];
+  if (aL && aR) {
+    if (e.gun) { aL.rotation.set(-1.35, 0, .45); aR.rotation.set(-1.25, 0, -.3); }   // 총을 두 손으로 겨눈 자세
+    else { aL.rotation.set(0, 0, 0); aR.rotation.set(0, 0, 0); }
+  }
 }
 function mateTag(n) { const t = el('div', { class: 'ol-tag', text: n }); document.body.append(t); return t; }
 function removeMate(n) { const m = mates.get(n); if (!m) return; if (m.g.parent) m.g.parent.remove(m.g); m.tag.remove(); mates.delete(n); }
@@ -271,11 +310,13 @@ function onPos(m) {
   if (!RD || mode !== 'raid' || m.n === me.nick) return;
   let e = mates.get(m.n);
   if (!e) { try { e = { g: mateModel(), tag: mateTag(m.n), first: true }; } catch (x) { return; } mates.set(m.n, e); }
-  Object.assign(e, { tx: m.x, ty: m.y, tz: m.z, tyaw: m.yaw, c: m.c, last: performance.now() });
+  Object.assign(e, { tx: m.x, ty: m.y, tz: m.z, tyaw: m.yaw, c: m.c, s: m.s, q: m.q, last: performance.now() });
+  setMateGun(e, m.g);
 }
 const _v = (typeof THREE !== 'undefined' && THREE.Vector3) ? new THREE.Vector3() : null;
 function mateLoop() {
   requestAnimationFrame(mateLoop);
+  const tNow = performance.now(), dtf = Math.max(.001, Math.min(.1, (tNow - (mateLoop.t || tNow)) / 1000)); mateLoop.t = tNow;
   const live = RD && mode === 'raid';
   for (const [n, e] of mates) {
     if (!live || performance.now() - e.last > 4000) { removeMate(n); continue; }
@@ -283,7 +324,27 @@ function mateLoop() {
       if (e.g.parent !== scene) scene.add(e.g);                  // 맵이 다시 만들어졌으면 새 씬에 붙임
       const p = e.g.position;
       if (e.first) { p.set(e.tx, e.ty, e.tz); e.g.rotation.y = e.tyaw + Math.PI; e.first = false; }
+      const ox = p.x, oz = p.z;
       p.x += (e.tx - p.x) * .3; p.y += (e.ty - p.y) * .3; p.z += (e.tz - p.z) * .3;
+      // 팀원 발소리: 실제 이동 거리에 맞춰 (내 발소리와 같은 간격/크기, 앉으면 무음)
+      const mv = Math.hypot(p.x - ox, p.z - oz);
+      e.sp = (e.sp || 0) * .8 + (mv / dtf) * .2;
+      if (mv > 0 && e.sp > .5 && e.sp < 14 && !e.c && Math.abs(e.ty - p.y) < .6) {
+        e.sd = (e.sd || 0) + mv;
+        const stride = e.s ? 2.2 : e.q ? 1.3 : 1.7;
+        if (e.sd >= stride) {
+          e.sd = 0;
+          try { stepAt(p.x, p.z, e.s ? .45 : e.q ? .035 : .24); } catch (x) { /* 오디오 불가 */ }
+        }
+      } else if (e.sp <= .5) e.sd = .9;
+      const sol = e.g.userData.sol;
+      if (sol) {                                                 // 걷기 다리 애니메이션
+        e.ph = (e.ph || 0) + mv * 1.85;
+        const tgt = (e.sp > .5 && !e.c) ? Math.min(.85, .35 + e.sp * .07) : 0;
+        e.amp = (e.amp || 0) + (tgt - (e.amp || 0)) * .2;
+        const a = Math.sin(e.ph) * e.amp; SOLDIER.swingLegs(sol, a, -a);
+      }
+      if (e.gun && e.gun.userData.f) e.gun.userData.f.visible = !!(e.flashT && tNow < e.flashT);   // 총구 화염
       let d = (e.tyaw + Math.PI) - e.g.rotation.y; d = Math.atan2(Math.sin(d), Math.cos(d)); e.g.rotation.y += d * .3;
       e.g.scale.y = e.c ? .78 : 1;
       _v.set(p.x, p.y + (e.c ? 1.55 : 1.95), p.z).project(camera);
@@ -295,6 +356,26 @@ function mateLoop() {
   }
 }
 if (_v) requestAnimationFrame(mateLoop);
+/* ---- 팀원 총소리 (방향·거리가 반영되는 3D 소리) ---- */
+function onShot(m) {
+  if (!RD || mode !== 'raid' || m.n === me.nick) return;
+  try { gunSnd(m.x, m.z, !!m.h); } catch (x) { /* 오디오 불가 */ }
+  const e = mates.get(m.n); if (e) e.flashT = performance.now() + 60;
+}
+const _shoot = shoot;
+shoot = function (w) {
+  const mg = w && w.mg, before = mg ? mg.mag : 0;
+  const r = _shoot.apply(this, arguments);
+  if (RD && mode === 'raid' && wsOpen && mg && mg.mag < before) {      // 실제로 발사된 경우만 (불발/빈 탄창 제외)
+    const o = I[w.k] && I[w.k][5];
+    ws.send(JSON.stringify({ t: 'shot', x: +pl.x.toFixed(1), z: +pl.z.toFixed(1), h: o && o.mdl !== 'pi' ? 1 : 0 }));
+  }
+  return r;
+};
+// 지금 손에 든 무기 키 (수류탄을 들었거나 맨손이면 빈 문자열)
+function heldKey() {
+  try { if (typeof GR !== 'undefined' && GR.on) return ''; const w = wpn(); return w && w.k ? String(w.k) : ''; } catch (x) { return ''; }
+}
 /* ---- 적 피해/처치 공유 ---- */
 function onEnemyHit(m) {
   if (!RD || mode !== 'raid') return;
@@ -312,7 +393,7 @@ function syncEnemies() {
   }
 }
 setInterval(() => {            // 내 위치를 10Hz로 공유
-  if (RD && mode === 'raid' && wsOpen) ws.send(JSON.stringify({ t: 'pos', x: +pl.x.toFixed(2), y: +pl.y.toFixed(2), z: +pl.z.toFixed(2), yaw: +pl.yaw.toFixed(3), c: pl.crouch ? 1 : 0 }));
+  if (RD && mode === 'raid' && wsOpen) ws.send(JSON.stringify({ t: 'pos', x: +pl.x.toFixed(2), y: +pl.y.toFixed(2), z: +pl.z.toFixed(2), yaw: +pl.yaw.toFixed(3), c: pl.crouch ? 1 : 0, s: pl.sprint ? 1 : 0, q: (typeof qwS !== 'undefined' && qwS) ? 1 : 0, g: heldKey() }));
   if (RD && mode === 'raid' && wsOpen) syncEnemies();
   if (RD && mode !== 'raid' && performance.now() - RD.t0 > 3000) { RD = null; for (const n of [...mates.keys()]) removeMate(n); }
 }, 100);
