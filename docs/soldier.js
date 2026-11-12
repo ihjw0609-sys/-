@@ -229,7 +229,8 @@ window.SOLDIER_PURE = { fpsArm, look, buildVariant, solveArm, legPose, morphPoin
 /* ================================================================
  *  2) THREE 연결부
  * ================================================================ */
-if (typeof THREE === 'undefined' || typeof scene === 'undefined' || typeof camera === 'undefined') { console.warn('soldier.js: 게임 본체를 찾지 못해 3D 교체는 건너뜁니다'); return; }
+/* scene/camera 는 레이드 시작 때 만들어지므로 여기서 검사하면 안 됨 — 게임 본체(gunMesh 함수)가 있는지만 본다 */
+if (typeof THREE === 'undefined' || typeof gunMesh !== 'function') { console.warn('soldier.js: 게임 본체를 찾지 못해 3D 교체는 건너뜁니다'); return; }
 const REV = parseInt(THREE.REVISION, 10) || 0;
 const matCache = {};
 const lam = hex => matCache[hex] || (matCache[hex] = new THREE.MeshLambertMaterial({ color: hex }));
